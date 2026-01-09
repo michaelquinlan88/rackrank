@@ -10,7 +10,7 @@ on:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  SERVICE_NAME: ractrack-api
+  SERVICE_NAME: rackrank-api
   REGION: us-central1
 
 jobs:

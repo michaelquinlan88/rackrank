@@ -16,7 +16,7 @@ Before you begin, ensure you have:
 
 ```bash
 git clone <your-github-repo-url>
-cd rack-rack
+cd rack-rank
 ```
 
 ### 2. Frontend Setup
@@ -101,7 +101,7 @@ gcloud services enable secretmanager.googleapis.com
 ### 3. Create Cloud SQL Instance
 
 ```bash
-gcloud sql instances create ractrack-db \
+gcloud sql instances create rackrank-db \
   --database-version=POSTGRES_15 \
   --tier=db-f1-micro \
   --region=us-central1
@@ -118,9 +118,9 @@ echo -n "your_ebay_app_id" | gcloud secrets create EBAY_APP_ID --data-file=-
 
 ```bash
 cd backend
-gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/ractrack-api
-gcloud run deploy ractrack-api \
-  --image gcr.io/YOUR_PROJECT_ID/ractrack-api \
+gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/rackrank-api
+gcloud run deploy rackrank-api \
+  --image gcr.io/YOUR_PROJECT_ID/rackrank-api \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated

@@ -2,7 +2,7 @@
 
 ## System Overview
 
-RackRack is an AI-first mobile application that reduces the friction of reselling clothing online from 10-20 minutes to under 3 minutes per item.
+RackRank is an AI-first mobile application that reduces the friction of reselling clothing online from 10-20 minutes to under 3 minutes per item.
 
 ## Architecture Diagram
 

@@ -1,10 +1,10 @@
-# RackRack
+# RackRank
 
 AI-first mobile application for scanning clothing items and quickly creating resale listings.
 
 ## 📋 Overview
 
-RackRack dramatically reduces the friction of reselling clothes online by:
+RackRank dramatically reduces the friction of reselling clothes online by:
 - **Scanning** items with AI-powered detection
 - **Ranking** top 2-3 items by resale value
 - **Capturing** guided photos with quality checks
@@ -18,7 +18,7 @@ RackRack dramatically reduces the friction of reselling clothes online by:
 ## 🏗️ Architecture
 
 ```
-rack-rack/
+rack-rank/
 ├── frontend/          # React Native + Expo mobile app
 ├── backend/           # Python FastAPI server
 ├── docs/              # System documentation

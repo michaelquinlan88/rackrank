@@ -3,7 +3,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 /**
- * RackRack Mobile App
+ * RackRank Mobile App
  * 
  * AI-first clothing resale scanner.
  * Root component for the Expo app.
@@ -11,7 +11,7 @@ import { StyleSheet, Text, View } from 'react-native';
 export default function App() {
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>RackRack</Text>
+            <Text style={styles.title}>RackRank</Text>
             <Text style={styles.subtitle}>AI-Powered Resale Scanner</Text>
             <Text style={styles.description}>
                 Scan. Capture. List. Sell.

@@ -1,5 +1,5 @@
 """
-RackRack Backend API
+RackRank Backend API
 
 FastAPI server for AI-powered clothing resale listing generation.
 Integrates with Gemini 2.0 Flash, eBay API, and Google Shopping API.
@@ -12,7 +12,7 @@ from typing import List, Optional
 import os
 
 app = FastAPI(
-    title="RackRack API",
+    title="RackRank API",
     description="AI-powered clothing resale listing generator",
     version="0.1.0"
 )
@@ -51,7 +51,7 @@ async def root():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "service": "RackRack API",
+        "service": "RackRank API",
         "version": "0.1.0"
     }
 
