@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
     StyleSheet, View, Text, TouchableOpacity, SafeAreaView,
-    Animated, Dimensions, Vibration, StatusBar, Alert, ActivityIndicator
+    Animated, Dimensions, Vibration, StatusBar, Image, ActivityIndicator
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Detection result type
 interface DetectionResult {
@@ -21,168 +21,141 @@ interface ScanScreenProps {
     navigation: any;
 }
 
+type ScanState = 'camera' | 'preview' | 'analyzing' | 'result';
+
 export default function ScanScreen({ navigation }: ScanScreenProps) {
     const [permission, requestPermission] = useCameraPermissions();
+    const [scanState, setScanState] = useState<ScanState>('camera');
+    const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
     const [detection, setDetection] = useState<DetectionResult | null>(null);
-    const [isScanning, setIsScanning] = useState(false);
     const [backendUrl, setBackendUrl] = useState<string>('http://localhost:8000');
-
-    // Story 12: Barcode scanning mode
-    const [scanMode, setScanMode] = useState<'ai' | 'barcode'>('ai');
-    const [barcodeResult, setBarcodeResult] = useState<string | null>(null);
-    const [barcodeLoading, setBarcodeLoading] = useState(false);
 
     const cameraRef = useRef<CameraView>(null);
     const pulseAnim = useRef(new Animated.Value(1)).current;
-    const scanLineAnim = useRef(new Animated.Value(0)).current;
-    const detectionOpacity = useRef(new Animated.Value(0)).current;
-    const detectionSlide = useRef(new Animated.Value(30)).current;
-    const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-    const scanLineTranslateY = useMemo(
-        () => scanLineAnim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0, 320],
-        }),
-        [scanLineAnim]
-    );
+    const resultOpacity = useRef(new Animated.Value(0)).current;
+    const resultSlide = useRef(new Animated.Value(30)).current;
 
     // Load backend URL from settings
-    useEffect(() => {
+    React.useEffect(() => {
         AsyncStorage.getItem('backendUrl').then(url => {
             if (url) setBackendUrl(url);
         });
     }, []);
 
-    // Pulsing animation
-    useEffect(() => {
-        const pulse = Animated.loop(
-            Animated.sequence([
-                Animated.timing(pulseAnim, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
-                Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
-            ])
-        );
-        pulse.start();
-        return () => pulse.stop();
-    }, [pulseAnim]);
-
-    // Scan line animation
-    useEffect(() => {
-        const scanLoop = Animated.loop(
-            Animated.sequence([
-                Animated.timing(scanLineAnim, { toValue: 1, duration: 2000, useNativeDriver: true }),
-                Animated.timing(scanLineAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
-            ])
-        );
-        scanLoop.start();
-        return () => scanLoop.stop();
-    }, [scanLineAnim]);
-
-    // Real AI detection using camera frame capture
-    const performQuickScan = useCallback(async () => {
-        if (!cameraRef.current || isScanning) return;
-
-        setIsScanning(true);
-        try {
-            // Capture a frame from the camera
-            const photo = await cameraRef.current.takePictureAsync({
-                base64: true,
-                quality: 0.3, // Low quality for fast transfer
-                skipProcessing: true,
-            });
-
-            if (!photo?.base64) {
-                setIsScanning(false);
-                return;
-            }
-
-            // Call the backend quick-scan API
-            const response = await fetch(`${backendUrl}/quick-scan`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image_base64: photo.base64 }),
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                const result: DetectionResult = {
-                    brand: data.brand,
-                    confidence: data.confidence,
-                    priceRange: `$${data.price_min}-$${data.price_max}`,
-                    category: data.category,
-                };
-
-                setDetection(result);
-                Vibration.vibrate(30);
-                detectionSlide.setValue(20);
-
-                Animated.parallel([
-                    Animated.timing(detectionOpacity, { toValue: 1, duration: 150, useNativeDriver: true }),
-                    Animated.spring(detectionSlide, { toValue: 0, tension: 100, friction: 8, useNativeDriver: true }),
-                ]).start();
-            }
-        } catch (error) {
-            console.log('Quick scan error:', error);
+    // Pulsing animation for capture button
+    React.useEffect(() => {
+        if (scanState === 'camera') {
+            const pulse = Animated.loop(
+                Animated.sequence([
+                    Animated.timing(pulseAnim, { toValue: 1.08, duration: 1200, useNativeDriver: true }),
+                    Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
+                ])
+            );
+            pulse.start();
+            return () => pulse.stop();
         }
-        setIsScanning(false);
-    }, [backendUrl, isScanning, detectionOpacity, detectionSlide]);
+    }, [pulseAnim, scanState]);
 
-    // Start scanning loop when camera is active
-    useEffect(() => {
-        if (permission?.granted && scanMode === 'ai') {
-            // Scan every 3 seconds (to avoid overwhelming the API)
-            scanIntervalRef.current = setInterval(performQuickScan, 3000);
-            // Initial scan after 1 second
-            const initialTimeout = setTimeout(performQuickScan, 1000);
+    // Capture photo
+    const handleCapture = useCallback(async () => {
+        if (!cameraRef.current || scanState !== 'camera') return;
 
-            return () => {
-                if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
-                clearTimeout(initialTimeout);
-            };
-        }
-    }, [permission?.granted, scanMode, performQuickScan]);
-
-    const handleQuickCapture = useCallback(() => {
-        Vibration.vibrate(100);
-        navigation.navigate('Capture');
-    }, [navigation]);
-
-
-    // Story 12: Simulate barcode detection
-    const handleBarcodeDetected = useCallback(() => {
-        if (barcodeLoading) return;
-        setBarcodeLoading(true);
         Vibration.vibrate(50);
 
-        // Simulate barcode lookup
-        setTimeout(() => {
-            const found = Math.random() > 0.3; // 70% success rate
-            if (found) {
-                setBarcodeResult('Nike Air Max 90 - Size 10');
-                Vibration.vibrate([0, 50, 50, 50]);
-            } else {
-                // Fall back to AI scan
-                Alert.alert(
-                    '🔍 Barcode Not Found',
-                    'This item isn\'t in our database. Switching to AI scan...',
-                    [{ text: 'OK', onPress: () => setScanMode('ai') }]
-                );
-            }
-            setBarcodeLoading(false);
-        }, 1500);
-    }, [barcodeLoading]);
+        try {
+            const photo = await cameraRef.current.takePictureAsync({
+                base64: true,
+                quality: 0.7,
+            });
 
-    // Toggle scan mode
-    const toggleScanMode = useCallback(() => {
-        setScanMode(prev => prev === 'ai' ? 'barcode' : 'ai');
-        setBarcodeResult(null);
+            if (photo?.uri && photo?.base64) {
+                setCapturedPhoto(photo.uri);
+                setScanState('preview');
+            }
+        } catch (error) {
+            console.log('Capture error:', error);
+        }
+    }, [scanState]);
+
+    // Retake photo
+    const handleRetake = useCallback(() => {
+        setCapturedPhoto(null);
+        setDetection(null);
+        setScanState('camera');
+        resultOpacity.setValue(0);
+        resultSlide.setValue(30);
+    }, [resultOpacity, resultSlide]);
+
+    // Analyze photo
+    const handleAnalyze = useCallback(async () => {
+        if (!capturedPhoto) return;
+
+        setScanState('analyzing');
         Vibration.vibrate(30);
-    }, []);
+
+        try {
+            // Get base64 from the captured photo
+            const response = await fetch(capturedPhoto);
+            const blob = await response.blob();
+            const reader = new FileReader();
+
+            reader.onloadend = async () => {
+                const base64String = (reader.result as string).split(',')[1];
+
+                try {
+                    const apiResponse = await fetch(`${backendUrl}/quick-scan`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ image_base64: base64String }),
+                    });
+
+                    if (apiResponse.ok) {
+                        const data = await apiResponse.json();
+                        const result: DetectionResult = {
+                            brand: data.brand,
+                            confidence: data.confidence,
+                            priceRange: `$${data.price_min}-$${data.price_max}`,
+                            category: data.category,
+                        };
+
+                        setDetection(result);
+                        setScanState('result');
+
+                        // Animate result in
+                        Animated.parallel([
+                            Animated.timing(resultOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+                            Animated.spring(resultSlide, { toValue: 0, tension: 80, friction: 10, useNativeDriver: true }),
+                        ]).start();
+
+                        Vibration.vibrate([0, 30, 50, 30]);
+                    } else {
+                        console.log('API error:', apiResponse.status);
+                        handleRetake();
+                    }
+                } catch (error) {
+                    console.log('Analysis error:', error);
+                    handleRetake();
+                }
+            };
+
+            reader.readAsDataURL(blob);
+        } catch (error) {
+            console.log('Photo read error:', error);
+            handleRetake();
+        }
+    }, [capturedPhoto, backendUrl, resultOpacity, resultSlide, handleRetake]);
+
+    // Continue to full capture flow
+    const handleContinue = useCallback(() => {
+        Vibration.vibrate(50);
+        navigation.navigate('Capture');
+    }, [navigation]);
 
     if (!permission) {
         return (
             <View style={styles.centerContainer}>
                 <StatusBar barStyle="dark-content" />
+                <ActivityIndicator size="large" color={theme.colors.primary} />
                 <Text style={styles.loadingText}>Loading camera...</Text>
             </View>
         );
@@ -192,7 +165,7 @@ export default function ScanScreen({ navigation }: ScanScreenProps) {
         return (
             <View style={styles.centerContainer}>
                 <StatusBar barStyle="dark-content" />
-                <Text style={styles.permissionIcon}>Camera</Text>
+                <Text style={styles.permissionIcon}>📷</Text>
                 <Text style={styles.permissionTitle}>Camera Access</Text>
                 <Text style={styles.permissionText}>
                     RackRank needs camera access to scan your clothing items.
@@ -207,9 +180,15 @@ export default function ScanScreen({ navigation }: ScanScreenProps) {
     return (
         <View style={styles.container}>
             <StatusBar barStyle="light-content" />
-            <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
 
-            {/* Gradient overlays */}
+            {/* Camera or Preview */}
+            {scanState === 'camera' ? (
+                <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+            ) : capturedPhoto ? (
+                <Image source={{ uri: capturedPhoto }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+            ) : null}
+
+            {/* Overlay gradients */}
             <View style={styles.topGradient} />
             <View style={styles.bottomGradient} />
 
@@ -220,90 +199,92 @@ export default function ScanScreen({ navigation }: ScanScreenProps) {
                         <Text style={styles.logoText}>RR</Text>
                     </View>
                     <Text style={styles.tagline}>
-                        {scanMode === 'ai' ? 'AI-Powered Resale Scanner' : 'Barcode Scanner Mode'}
+                        {scanState === 'camera' && 'Snap a photo to get started'}
+                        {scanState === 'preview' && 'Review your photo'}
+                        {scanState === 'analyzing' && 'Analyzing item...'}
+                        {scanState === 'result' && 'Analysis complete'}
                     </Text>
-
-                    {/* Story 12: Scan Mode Toggle */}
-                    <TouchableOpacity style={styles.modeToggle} onPress={toggleScanMode} activeOpacity={0.7}>
-                        <Text style={styles.modeToggleText}>
-                            {scanMode === 'ai' ? 'AI' : 'UPC'}
-                        </Text>
-                    </TouchableOpacity>
                 </View>
 
-                {/* Reticle */}
-                <View style={styles.reticleContainer}>
-                    <Animated.View style={[styles.reticle, { transform: [{ scale: pulseAnim }] }]}>
-                        <View style={[styles.corner, styles.topLeft]} />
-                        <View style={[styles.corner, styles.topRight]} />
-                        <View style={[styles.corner, styles.bottomLeft]} />
-                        <View style={[styles.corner, styles.bottomRight]} />
-                        <Animated.View style={[styles.scanLine, { transform: [{ translateY: scanLineTranslateY }] }]} />
-                    </Animated.View>
-                    <Text style={styles.hintText}>Point at a clothing item</Text>
+                {/* Center content */}
+                <View style={styles.centerContent}>
+                    {scanState === 'camera' && (
+                        <View style={styles.reticle}>
+                            <View style={[styles.corner, styles.topLeft]} />
+                            <View style={[styles.corner, styles.topRight]} />
+                            <View style={[styles.corner, styles.bottomLeft]} />
+                            <View style={[styles.corner, styles.bottomRight]} />
+                            <Text style={styles.hintText}>Position item in frame</Text>
+                        </View>
+                    )}
+
+                    {scanState === 'analyzing' && (
+                        <View style={styles.analyzingContainer}>
+                            <ActivityIndicator size="large" color={theme.colors.primary} />
+                            <Text style={styles.analyzingText}>Identifying brand...</Text>
+                        </View>
+                    )}
+
+                    {scanState === 'result' && detection && (
+                        <Animated.View style={[styles.resultCard, { opacity: resultOpacity, transform: [{ translateY: resultSlide }] }]}>
+                            <View style={styles.resultHeader}>
+                                <View style={styles.brandBadge}>
+                                    <Text style={styles.brandText}>{detection.brand}</Text>
+                                </View>
+                                <View style={styles.confidenceBadge}>
+                                    <Text style={styles.confidenceText}>{Math.round(detection.confidence * 100)}% match</Text>
+                                </View>
+                            </View>
+
+                            <View style={styles.priceHighlight}>
+                                <Text style={styles.priceLabel}>Estimated Value</Text>
+                                <Text style={styles.priceAmount}>{detection.priceRange}</Text>
+                            </View>
+
+                            <View style={styles.categoryRow}>
+                                <Text style={styles.categoryLabel}>Category</Text>
+                                <Text style={styles.categoryValue}>{detection.category}</Text>
+                            </View>
+                        </Animated.View>
+                    )}
                 </View>
 
-                {/* Detection Card */}
-                {detection && (
-                    <Animated.View style={[styles.detectionCard, { opacity: detectionOpacity, transform: [{ translateY: detectionSlide }] }]}>
-                        <View style={styles.detectionHeader}>
-                            <View style={styles.brandBadge}>
-                                <Text style={styles.brandText}>{detection.brand}</Text>
-                            </View>
-                            <View style={styles.confidenceBadge}>
-                                <Text style={styles.confidenceText}>{Math.round(detection.confidence * 100)}% match</Text>
-                            </View>
-                        </View>
-                        {/* Prominent value display */}
-                        <View style={styles.valueHighlight}>
-                            <Text style={styles.valueLabel}>Estimated Value</Text>
-                            <Text style={styles.valueAmount}>{detection.priceRange}</Text>
-                        </View>
-
-                        {/* Story 10: Price Intelligence Dashboard */}
-                        <View style={styles.priceIntelSection}>
-                            <Text style={styles.priceIntelTitle}>Price Intelligence</Text>
-
-                            <View style={styles.priceIntelGrid}>
-                                <View style={styles.priceIntelItem}>
-                                    <Text style={styles.priceIntelValue}>12</Text>
-                                    <Text style={styles.priceIntelLabel}>Similar Sold</Text>
-                                </View>
-                                <View style={styles.priceIntelItem}>
-                                    <Text style={styles.priceIntelValue}>$52</Text>
-                                    <Text style={styles.priceIntelLabel}>Avg Price</Text>
-                                </View>
-                                <View style={styles.priceIntelItem}>
-                                    <Text style={styles.priceIntelValue}>5d</Text>
-                                    <Text style={styles.priceIntelLabel}>Avg Days</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.confidenceBar}>
-                                <View style={[styles.confidenceFill, { width: `${detection.confidence * 100}%` }]} />
-                            </View>
-                            <Text style={styles.confidenceLabel}>Price confidence: {Math.round(detection.confidence * 100)}%</Text>
-                        </View>
-
-                        <View style={styles.detectionDetails}>
-                            <View style={styles.detailItem}>
-                                <Text style={styles.detailLabel}>Category</Text>
-                                <Text style={styles.detailValue}>{detection.category}</Text>
-                            </View>
-                        </View>
-                    </Animated.View>
-                )}
-
-                {/* Capture Button */}
+                {/* Bottom actions */}
                 <View style={styles.bottomActions}>
-                    <TouchableOpacity style={styles.captureButton} onPress={handleQuickCapture} activeOpacity={0.8}>
-                        <View style={styles.captureOuter}>
-                            <View style={styles.captureInner}>
-                                <Text style={styles.captureIcon}>+</Text>
-                            </View>
+                    {scanState === 'camera' && (
+                        <>
+                            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                                <TouchableOpacity style={styles.captureButton} onPress={handleCapture} activeOpacity={0.8}>
+                                    <View style={styles.captureOuter}>
+                                        <View style={styles.captureInner} />
+                                    </View>
+                                </TouchableOpacity>
+                            </Animated.View>
+                            <Text style={styles.captureLabel}>Tap to capture</Text>
+                        </>
+                    )}
+
+                    {scanState === 'preview' && (
+                        <View style={styles.previewActions}>
+                            <TouchableOpacity style={styles.retakeButton} onPress={handleRetake}>
+                                <Text style={styles.retakeText}>Retake</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.analyzeButton} onPress={handleAnalyze}>
+                                <Text style={styles.analyzeText}>✨ Analyze</Text>
+                            </TouchableOpacity>
                         </View>
-                    </TouchableOpacity>
-                    <Text style={styles.captureLabel}>Tap to Start Listing</Text>
+                    )}
+
+                    {scanState === 'result' && (
+                        <View style={styles.resultActions}>
+                            <TouchableOpacity style={styles.retakeButton} onPress={handleRetake}>
+                                <Text style={styles.retakeText}>Scan Another</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+                                <Text style={styles.continueText}>Continue →</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
             </SafeAreaView>
         </View>
@@ -325,22 +306,23 @@ const styles = StyleSheet.create({
     loadingText: {
         color: theme.colors.textMuted,
         fontSize: 16,
+        marginTop: 16,
     },
     topGradient: {
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
-        height: 150,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        height: 180,
+        backgroundColor: 'rgba(0,0,0,0.6)',
     },
     bottomGradient: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        height: 280,
-        backgroundColor: 'rgba(0,0,0,0.6)',
+        height: 300,
+        backgroundColor: 'rgba(0,0,0,0.7)',
     },
     overlay: {
         flex: 1,
@@ -352,29 +334,33 @@ const styles = StyleSheet.create({
     },
     logoContainer: {
         backgroundColor: theme.colors.primary,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
         borderRadius: theme.roundness.md,
     },
     logoText: {
         color: '#FFF',
-        fontSize: 24,
-        fontWeight: '700',
-        letterSpacing: 2,
+        fontSize: 28,
+        fontWeight: '800',
+        letterSpacing: 3,
     },
     tagline: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.7)',
-        marginTop: 8,
-        fontWeight: '500',
+        fontSize: 15,
+        color: 'rgba(255,255,255,0.85)',
+        marginTop: 12,
+        fontWeight: '600',
     },
-    reticleContainer: {
+    centerContent: {
+        flex: 1,
+        justifyContent: 'center',
         alignItems: 'center',
     },
     reticle: {
         width: 280,
         height: 350,
         position: 'relative',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     corner: {
         position: 'absolute',
@@ -402,136 +388,163 @@ const styles = StyleSheet.create({
         borderBottomWidth: 4, borderRightWidth: 4,
         borderBottomRightRadius: 16,
     },
-    scanLine: {
-        position: 'absolute',
-        left: 10,
-        right: 10,
-        height: 2,
-        backgroundColor: theme.colors.primary,
-        shadowColor: theme.colors.primary,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 1,
-        shadowRadius: 10,
-    },
     hintText: {
         color: 'rgba(255,255,255,0.7)',
         fontSize: 14,
-        marginTop: 20,
         fontWeight: '500',
+        position: 'absolute',
+        bottom: -40,
     },
-    detectionCard: {
-        marginHorizontal: 20,
-        backgroundColor: 'rgba(255,255,255,0.95)',
+    analyzingContainer: {
+        alignItems: 'center',
+    },
+    analyzingText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '600',
+        marginTop: 16,
+    },
+    resultCard: {
+        backgroundColor: 'rgba(255,255,255,0.97)',
         borderRadius: theme.roundness.lg,
-        padding: theme.spacing.md,
+        padding: theme.spacing.lg,
+        marginHorizontal: 24,
+        width: SCREEN_WIDTH - 48,
         ...theme.shadows.lg,
     },
-    detectionHeader: {
+    resultHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 16,
     },
     brandBadge: {
         backgroundColor: theme.colors.primary,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
         borderRadius: theme.roundness.md,
     },
     brandText: {
         color: '#FFF',
         fontWeight: '700',
-        fontSize: 16,
+        fontSize: 18,
     },
     confidenceBadge: {
         backgroundColor: theme.colors.successLight,
-        paddingHorizontal: 10,
+        paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: theme.roundness.sm,
     },
     confidenceText: {
         color: theme.colors.success,
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: '600',
     },
-    valueHighlight: {
+    priceHighlight: {
         backgroundColor: theme.colors.primaryLight,
         borderRadius: theme.roundness.md,
         padding: theme.spacing.md,
-        marginBottom: theme.spacing.sm,
         alignItems: 'center',
+        marginBottom: theme.spacing.md,
     },
-    valueLabel: {
+    priceLabel: {
         color: theme.colors.primary,
         fontSize: 12,
         fontWeight: '600',
         marginBottom: 4,
     },
-    valueAmount: {
+    priceAmount: {
         color: theme.colors.primary,
-        fontSize: 28,
+        fontSize: 32,
         fontWeight: '800',
         letterSpacing: -1,
     },
-    detectionDetails: {
+    categoryRow: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
     },
-    detailItem: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    detailLabel: {
+    categoryLabel: {
         color: theme.colors.textMuted,
-        fontSize: 11,
-        textTransform: 'uppercase',
+        fontSize: 12,
         fontWeight: '600',
+        textTransform: 'uppercase',
     },
-    detailValue: {
+    categoryValue: {
         color: theme.colors.text,
         fontSize: 16,
         fontWeight: '700',
-        marginTop: 2,
-    },
-    detailDivider: {
-        width: 1,
-        height: 30,
-        backgroundColor: theme.colors.border,
     },
     bottomActions: {
         alignItems: 'center',
-        paddingBottom: 40,
+        paddingBottom: 50,
     },
     captureButton: {
         marginBottom: 12,
     },
     captureOuter: {
-        width: 88,
-        height: 88,
-        borderRadius: 44,
+        width: 80,
+        height: 80,
+        borderRadius: 40,
         backgroundColor: 'rgba(255,255,255,0.25)',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 4,
-        borderColor: theme.colors.primary,
+        borderColor: '#FFF',
     },
     captureInner: {
-        width: 68,
-        height: 68,
-        borderRadius: 34,
-        backgroundColor: theme.colors.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    captureIcon: {
-        fontSize: 32,
-        fontWeight: '300',
-        color: '#FFFFFF',
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#FFF',
     },
     captureLabel: {
-        color: 'rgba(255,255,255,0.8)',
-        fontSize: 14,
+        color: 'rgba(255,255,255,0.9)',
+        fontSize: 15,
         fontWeight: '600',
+    },
+    previewActions: {
+        flexDirection: 'row',
+        gap: 16,
+    },
+    retakeButton: {
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        paddingHorizontal: 28,
+        paddingVertical: 16,
+        borderRadius: theme.roundness.md,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.3)',
+    },
+    retakeText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    analyzeButton: {
+        backgroundColor: theme.colors.primary,
+        paddingHorizontal: 36,
+        paddingVertical: 16,
+        borderRadius: theme.roundness.md,
+    },
+    analyzeText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    resultActions: {
+        flexDirection: 'row',
+        gap: 16,
+    },
+    continueButton: {
+        backgroundColor: theme.colors.primary,
+        paddingHorizontal: 32,
+        paddingVertical: 16,
+        borderRadius: theme.roundness.md,
+    },
+    continueText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '700',
     },
     permissionIcon: {
         fontSize: 64,
@@ -560,92 +573,5 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontWeight: '700',
         fontSize: 16,
-    },
-    // Story 10: Price Intelligence Dashboard Styles
-    priceIntelSection: {
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: theme.roundness.md,
-        padding: 12,
-        marginTop: 12,
-    },
-    priceIntelTitle: {
-        color: theme.colors.text,
-        fontSize: 12,
-        fontWeight: '600',
-        marginBottom: 10,
-    },
-    priceIntelGrid: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        marginBottom: 12,
-    },
-    priceIntelItem: {
-        alignItems: 'center',
-    },
-    priceIntelValue: {
-        color: theme.colors.primary,
-        fontSize: 20,
-        fontWeight: '700',
-    },
-    priceIntelLabel: {
-        color: theme.colors.textMuted,
-        fontSize: 10,
-        marginTop: 2,
-    },
-    confidenceBar: {
-        height: 6,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 3,
-        overflow: 'hidden',
-        marginBottom: 6,
-    },
-    confidenceFill: {
-        height: '100%',
-        backgroundColor: theme.colors.success,
-        borderRadius: 3,
-    },
-    confidenceLabel: {
-        color: theme.colors.textMuted,
-        fontSize: 10,
-        textAlign: 'center',
-    },
-    // Story 12: Barcode Scan Mode Toggle
-    modeToggle: {
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-        marginTop: 8,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)',
-    },
-    modeToggleText: {
-        color: '#FFF',
-        fontSize: 12,
-        fontWeight: '600',
-    },
-    barcodePrompt: {
-        backgroundColor: theme.colors.surface,
-        padding: 16,
-        borderRadius: theme.roundness.md,
-        marginBottom: 16,
-        alignItems: 'center',
-    },
-    barcodePromptText: {
-        color: theme.colors.text,
-        fontSize: 14,
-        fontWeight: '600',
-        marginBottom: 8,
-    },
-    barcodeResult: {
-        backgroundColor: theme.colors.success,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: theme.roundness.sm,
-    },
-    barcodeResultText: {
-        color: '#FFF',
-        fontSize: 13,
-        fontWeight: '600',
     },
 });

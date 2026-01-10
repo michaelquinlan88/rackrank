@@ -541,17 +541,29 @@ async def create_multi_listing(request: MultiMarketplaceRequest):
 
 # Quick-scan endpoint for real-time preview detection
 QUICK_SCAN_PROMPT = """
+You are an expert at identifying clothing brands from images.
+
+CRITICAL: Your #1 priority is to READ ANY VISIBLE TEXT in the image.
+- Look for brand names printed on labels, tags, zippers, or the garment itself
+- If you see text like "ARC'TERYX", "PATAGONIA", "THE NORTH FACE", "NIKE", etc., that IS the brand
+- Do NOT guess brands - only report what you can actually read or clearly recognize
+
 Analyze this clothing item image and return ONLY a JSON object with:
 {
-  "brand": "Brand name if visible, or 'Unknown'",
+  "brand": "Exact brand name you can read/see, or 'Unknown' if not visible",
   "confidence": 0.85,
   "price_min": 30,
   "price_max": 60,
   "category": "Outdoor/Athletic/Denim/Streetwear/Workwear/Casual"
 }
+
 Rules:
-- confidence is 0-1 float based on how clearly you can see the brand
+- READ THE LABEL/TAG FIRST - the brand name is usually printed there
+- confidence should be HIGH (0.9+) if you can read the brand name clearly
+- confidence should be LOW (0.3-0.5) if you're guessing
 - price_min and price_max are realistic resale prices in USD
+- Premium outdoor brands (Arc'teryx, Patagonia, The North Face) command higher prices ($80-300+)
+- Category should match the garment type (e.g., "Outdoor" for technical jackets, not "Denim")
 - Return ONLY the JSON, no explanation
 """
 
