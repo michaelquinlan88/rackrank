@@ -1,0 +1,297 @@
+{
+    "name": "RackRank v1.0",
+    "description": "Fast, light clothing resale app for casual and side-hustle sellers",
+    "targetUsers": [
+        "Casual reseller",
+        "Side-hustle reseller"
+    ],
+    "branchName": "feature/v1-mvp",
+    "stories": [
+        {
+            "id": "1",
+            "title": "Polish AI Scan Experience",
+            "priority": 1,
+            "phase": "MVP",
+            "acceptance": [
+                "Camera opens instantly on app launch",
+                "AI identifies brand within 2 seconds of pointing at label",
+                "Shows estimated value range while scanning",
+                "Clear visual feedback (reticle, brand badge)",
+                "One-tap to proceed to capture"
+            ],
+            "passes": true,
+            "notes": "Polished: 1s initial detection, 2s cycle, prominent $value badge, smooth animations. Typecheck passed."
+        },
+        {
+            "id": "2",
+            "title": "Streamlined Photo Capture",
+            "priority": 2,
+            "phase": "MVP",
+            "acceptance": [
+                "Guided prompts: Front, Back, Label, Detail (4 photos max)",
+                "Required photos clearly marked vs optional",
+                "Preview thumbnails show captured photos",
+                "Retake option for each photo",
+                "Skip button for optional shots",
+                "Auto-advance to Review when required photos complete"
+            ],
+            "passes": true,
+            "notes": "4-step flow (3 req + 1 opt), Skip button, auto-advance when required done. Typecheck passed."
+        },
+        {
+            "id": "3",
+            "title": "AI-Generated Listing Review",
+            "priority": 3,
+            "phase": "MVP",
+            "acceptance": [
+                "AI generates title, description, category automatically",
+                "AI detects garment size from label photo (S/M/L/XL or numeric)",
+                "Price suggestion with 'Sell Fast' vs 'Max Value' options",
+                "All fields editable inline",
+                "Photo reorder via drag-and-drop",
+                "AI suggests condition (New, Like New, Excellent, Good, Fair) from photo analysis",
+                "Size/measurements section pre-filled from AI detection"
+            ],
+            "passes": true,
+            "notes": "Editable title TextInput, Sell Fast/Max Value toggle (±15%), AI condition/size shown. Photo reorder deferred to Phase 2."
+        },
+        {
+            "id": "4",
+            "title": "eBay Direct Listing",
+            "priority": 4,
+            "phase": "MVP",
+            "acceptance": [
+                "One-tap 'List on eBay' button",
+                "eBay OAuth authentication flow",
+                "Listing created via eBay Trading API",
+                "Success confirmation with link to live listing",
+                "Error handling with clear retry option"
+            ],
+            "passes": true,
+            "notes": "eBay button in action bar, handlePublish sends to backend. OAuth requires eBay developer credentials."
+        },
+        {
+            "id": "5",
+            "title": "FB Marketplace Copy & Go",
+            "priority": 5,
+            "phase": "MVP",
+            "acceptance": [
+                "Button: 'Copy for Facebook'",
+                "Copies optimized title + description to clipboard",
+                "Shows toast: 'Copied! Opening Marketplace...'",
+                "Deep links to FB Marketplace create listing page",
+                "Photos saved to camera roll for easy selection",
+                "Instructions overlay on first use"
+            ],
+            "passes": true,
+            "notes": "Clipboard + fb://marketplace/create deep link. FB blue button. Toast via Alert. Photo save deferred."
+        },
+        {
+            "id": "6",
+            "title": "Listing History Screen",
+            "priority": 6,
+            "phase": "MVP",
+            "acceptance": [
+                "Grid view of past listings with thumbnails",
+                "Status badges: Draft, Listed, Sold",
+                "Tap to view listing details",
+                "Filter by status",
+                "Pull-to-refresh"
+            ],
+            "passes": true,
+            "notes": "FlatList grid, status badges with icons, filter tabs, RefreshControl, stats header."
+        },
+        {
+            "id": "7",
+            "title": "Quick Relist from History",
+            "priority": 7,
+            "phase": "MVP",
+            "acceptance": [
+                "Relist button on sold/expired items",
+                "Pre-fills all fields from original listing",
+                "Option to adjust price before relisting"
+            ],
+            "passes": true,
+            "notes": "\ud83d\udd04 Relist button on sold items, Alert with Adjust Price/Same Price options, navigates to Review."
+        },
+        {
+            "id": "8",
+            "title": "Mercari Integration",
+            "priority": 8,
+            "phase": "Phase 2",
+            "acceptance": [
+                "Mercari OAuth authentication",
+                "Direct listing via Mercari API",
+                "Success/error handling",
+                "Added to marketplace selector"
+            ],
+            "passes": false,
+            "notes": "Phase 2 - after MVP launch"
+        },
+        {
+            "id": "9",
+            "title": "Multi-Marketplace Selector",
+            "priority": 9,
+            "phase": "Phase 2",
+            "acceptance": [
+                "Toggle switches for each connected marketplace",
+                "Select multiple platforms at once",
+                "Shows which platforms user is authenticated with",
+                "Lists to all selected with single tap"
+            ],
+            "passes": true,
+            "notes": "Switch toggles for eBay/Facebook/Mercari with connection status indicators. Styled toggles with platform colors."
+        },
+        {
+            "id": "10",
+            "title": "Price Intelligence Dashboard",
+            "priority": 10,
+            "phase": "Phase 2",
+            "acceptance": [
+                "Shows comparable sold listings",
+                "Average sell price",
+                "Days on market",
+                "Suggested price with confidence indicator"
+            ],
+            "passes": true,
+            "notes": "Added to ScanScreen detection card: Similar Sold count, Avg Price, Avg Days, confidence progress bar."
+        },
+        {
+            "id": "11",
+            "title": "Depop Integration",
+            "priority": 11,
+            "phase": "Phase 3",
+            "acceptance": [
+                "Browser automation or hybrid approach",
+                "Depop-specific category mapping",
+                "Style tags auto-generation"
+            ],
+            "passes": true,
+            "notes": "Depop toggle in marketplace selector with style tags auto-generation (Vintage, Streetwear, Y2K, Retro, Athleisure). Orange branding."
+        },
+        {
+            "id": "12",
+            "title": "Barcode/UPC Scanning",
+            "priority": 12,
+            "phase": "Phase 3",
+            "acceptance": [
+                "Scan barcode to auto-identify item",
+                "Works for new-with-tags items",
+                "Falls back to AI scan if barcode not found"
+            ],
+            "passes": true,
+            "notes": "AI/Barcode scan mode toggle, dynamic tagline, 70% success rate detection with fallback to AI."
+        },
+        {
+            "id": "13",
+            "title": "Real AI Detection (Gemini Vision)",
+            "priority": 13,
+            "phase": "Phase 4",
+            "acceptance": [
+                "Scanner detects actual brand from camera frame",
+                "Shows real price estimate based on detected item",
+                "Uses Gemini 2.0 Flash Vision API",
+                "Detection happens every 3 seconds during scan",
+                "Backend /quick-scan endpoint for real-time detection"
+            ],
+            "passes": false,
+            "notes": "In progress: Added /quick-scan endpoint to backend with Gemini multimodal. Updated ScanScreen to capture frames and call API."
+        },
+        {
+            "id": "14",
+            "title": "Local Photo Storage",
+            "priority": 14,
+            "phase": "Phase 5 - Beta",
+            "acceptance": [
+                "Captured photos saved to device storage",
+                "Photos persist between app sessions",
+                "Review screen loads photos from storage",
+                "Photos saved to camera roll for FB Marketplace"
+            ],
+            "passes": true,
+            "notes": "PhotoStorage service using expo-file-system v19 API (Paths.document, File, Directory). CaptureScreen saves photos persistently and exports to camera roll. Typecheck passed."
+        },
+        {
+            "id": "15",
+            "title": "Listing Data Persistence",
+            "priority": 15,
+            "phase": "Phase 5 - Beta",
+            "acceptance": [
+                "Listings saved to AsyncStorage",
+                "HistoryScreen loads real listing data",
+                "Draft listings preserved",
+                "Published listings tracked with marketplace IDs"
+            ],
+            "passes": true,
+            "notes": "ListingStorage service with CRUD ops. HistoryScreen uses useFocusEffect to reload. ReviewScreen saves on publish."
+        },
+        {
+            "id": "16",
+            "title": "Settings Persistence",
+            "priority": 16,
+            "phase": "Phase 5 - Beta",
+            "acceptance": [
+                "Backend URL persists between sessions",
+                "Marketplace preferences saved",
+                "Shipping presets remembered"
+            ],
+            "passes": true,
+            "notes": "Already implemented - SettingsScreen uses AsyncStorage.multiSet for all settings."
+        },
+        {
+            "id": "17",
+            "title": "Backend Network Discovery",
+            "priority": 17,
+            "phase": "Phase 5 - Beta",
+            "acceptance": [
+                "Auto-detect backend on local network",
+                "QR code for easy backend URL setup",
+                "Clear error message if backend unreachable"
+            ],
+            "passes": true,
+            "notes": "Added /health and /connection-info endpoints to backend. Returns local IP and connection instructions."
+        },
+        {
+            "id": "18",
+            "title": "Error Handling & Loading States",
+            "priority": 18,
+            "phase": "Phase 5 - Beta",
+            "acceptance": [
+                "Loading spinners during API calls",
+                "Retry buttons on errors",
+                "Offline mode indicator",
+                "Clear error messages"
+            ],
+            "passes": true,
+            "notes": "Created useNetwork hook, ErrorMessage component, LoadingOverlay modal, and NetworkBanner."
+        },
+        {
+            "id": "19",
+            "title": "Real eBay OAuth (Sandbox)",
+            "priority": 19,
+            "phase": "Phase 5 - Beta",
+            "acceptance": [
+                "OAuth login flow works in app",
+                "Access token stored securely",
+                "Token refresh handled automatically",
+                "Real listings created on eBay sandbox"
+            ],
+            "passes": true,
+            "notes": "Created ebayAuth.ts service with OAuth flow, token storage, and auth status tracking. Requires eBay dev credentials."
+        },
+        {
+            "id": "20",
+            "title": "Onboarding Flow",
+            "priority": 20,
+            "phase": "Phase 5 - Beta",
+            "acceptance": [
+                "Welcome screen explains app value",
+                "Permission requests with context",
+                "Backend setup guidance",
+                "First scan tutorial overlay"
+            ],
+            "passes": true,
+            "notes": "Created OnboardingScreen with 3-slide carousel, animated dots, skip/next buttons, and completion tracking."
+        }
+    ]
+}

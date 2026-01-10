@@ -1,153 +1,161 @@
-# RackRank
+# RackRank 📸👕
 
-AI-first mobile application for scanning clothing items and quickly creating resale listings.
+**Fast, intelligent clothing resale assistant powered by AI**
 
-## 📋 Overview
+RackRank helps you scan, price, and list clothing items for resale on eBay and Facebook Marketplace. Just point your camera at a garment, and AI does the rest.
 
-RackRank dramatically reduces the friction of reselling clothes online by:
-- **Scanning** items with AI-powered detection
-- **Ranking** top 2-3 items by resale value
-- **Capturing** guided photos with quality checks
-- **Generating** AI-powered listings (title, description, price)
-- **Publishing** to eBay, Depop, and Facebook Marketplace
+![Version](https://img.shields.io/badge/version-1.0.0--beta-orange)
+![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20Android-blue)
 
-**Target**: Complete scan-to-list in < 3 minutes (vs. 10-20 min manual baseline)
+## ✨ Features
 
----
+- **🔍 Instant Brand Detection** - AI identifies brands in <2 seconds
+- **💰 Smart Pricing** - Get market-based price suggestions
+- **📝 Auto-Generated Listings** - Title, description, and category created for you
+- **📱 Multi-Platform Publishing** - List to eBay and Facebook Marketplace
+- **📸 Guided Photo Capture** - 4-step workflow for perfect photos
+- **🏷️ Size Detection** - Reads size from labels automatically
 
-## 🏗️ Architecture
+## 🛠️ Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| **Mobile App** | React Native + Expo |
+| **Backend API** | FastAPI (Python) |
+| **AI Engine** | Google Gemini 2.0 Flash |
+| **Marketplaces** | eBay API, FB Marketplace |
+| **Storage** | AsyncStorage, expo-file-system |
+
+## 📦 Project Structure
 
 ```
 rack-rank/
-├── frontend/          # React Native + Expo mobile app
-├── backend/           # Python FastAPI server
-├── docs/              # System documentation
-└── .github/workflows/ # CI/CD pipelines
+├── frontend/          # React Native Expo app
+│   ├── src/
+│   │   ├── screens/   # App screens
+│   │   ├── components/ # Reusable components
+│   │   ├── services/  # API & storage services
+│   │   ├── hooks/     # Custom React hooks
+│   │   └── theme/     # Design system
+│   └── assets/        # App icons & images
+├── backend/           # FastAPI server
+│   ├── main.py        # API endpoints
+│   └── ebay_client.py # eBay integration
+└── PRIVACY.md         # Privacy policy
 ```
 
-### Technology Stack
-
-| Layer | Technology |
-|-------|------------|
-| Mobile | Expo + React Native + TypeScript |
-| Camera | react-native-vision-camera |
-| ML Runtime | react-native-fast-tflite |
-| Backend | Python FastAPI + Redis |
-| Database | PostgreSQL (Cloud SQL) |
-| AI Generation | Gemini 2.0 Flash |
-| Infrastructure | Google Cloud Platform |
-| Version Control | GitHub with CI/CD |
-
----
-
-## 🚀 Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 18+
+- Python 3.9+
 - Expo CLI (`npm install -g expo-cli`)
-- Python 3.11+
-- Google Cloud SDK (for deployment)
+- Expo Go app on your phone
 
 ### Frontend Setup
 
 ```bash
 cd frontend
 npm install
-npm start
+npx expo start
 ```
+
+Scan the QR code with Expo Go to run on your device.
 
 ### Backend Setup
 
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload
+
+# Copy environment template
+cp .env.example .env
+# Edit .env with your API keys
+
+uvicorn main:app --reload --host 0.0.0.0
 ```
 
----
+## ⚙️ Environment Variables
 
-## 📱 Key Features
+### Backend (.env)
 
-### 1. Guided Capture Checklist
+```env
+# Required
+GOOGLE_API_KEY=your_gemini_api_key
 
-Step-by-step photo prompts ensure quality listings:
-- Front view
-- Back view
-- Label/tag (brand & size)
-- Material tag
-- Defects (if any)
-- Detail shot
+# Optional - eBay Integration
+EBAY_CLIENT_ID=your_ebay_client_id
+EBAY_CLIENT_SECRET=your_ebay_client_secret
+EBAY_REDIRECT_URI=your_redirect_uri
+EBAY_SANDBOX=true
+```
 
-Real-time validation prevents blurry photos and missing required fields.
+### Frontend
 
-### 2. AI-Powered Listing Generation
+Update the backend URL in Settings screen, or set:
+```env
+EXPO_PUBLIC_API_URL=http://your-backend-ip:8000
+```
 
-Gemini 2.0 Flash generates:
-- SEO-optimized title
-- Compelling description
-- Accurate category
-- Price suggestion (based on eBay sold data)
-- Item condition assessment
+## 📱 App Screens
 
-### 3. Multi-Marketplace Publishing
+| Screen | Description |
+|--------|-------------|
+| **Scan** | Live camera with AI brand detection |
+| **Capture** | 4-step guided photo workflow |
+| **Review** | Edit AI-generated listing details |
+| **History** | View and manage past listings |
+| **Settings** | Configure backend, eBay, preferences |
 
-- **eBay**: Direct API integration
-- **Depop**: Deep link + clipboard pre-fill
-- **Facebook Marketplace**: Share intent
+## 🔌 API Endpoints
 
----
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/analyze` | POST | Analyze photos with AI |
+| `/health` | GET | Backend health check |
+| `/connection-info` | GET | Get backend IP for mobile |
+| `/ebay/status` | GET | Check eBay connection |
+| `/ebay/auth-url` | POST | Get OAuth URL |
 
-## 🔧 Development
+## 🎨 Brand Guidelines
 
-### Code Documentation Standards
+- **Primary Color**: Hermès Orange (#F37021)
+- **Typography**: Inter font family
+- **Design**: Light mode, extreme whitespace, card-based UI
 
-- **Frontend**: JSDoc/TSDoc for TypeScript
-- **Backend**: Google-style Python docstrings
-- **System**: Markdown in `/docs`
+## 🧪 Building for Testing
 
-### Branch Strategy
+### iOS (TestFlight)
+```bash
+cd frontend
+npx eas-cli build --platform ios --profile preview
+npx eas-cli submit --platform ios
+```
 
-- `main`: Production-ready code
-- `develop`: Integration branch
-- Feature branches: `feature/description`
-
-### CI/CD Pipeline
-
-GitHub Actions automatically:
-1. Run tests and linting
-2. Build Docker images
-3. Deploy to Google Cloud Run (on merge to main)
-
----
-
-## 🎯 MVP Roadmap
-
-**Phase 1** (10 weeks): Core scan, guided capture, AI listing generation, eBay integration
-
-**Phase 2** (6 weeks): Brand recognition (1000+ brands), condition assessment, seasonal trends
-
-**Phase 3** (4 weeks): Batch scanning, analytics dashboard
-
----
-
-## 📊 Success Metrics
-
-| Metric | Target |
-|--------|--------|
-| Median scan-to-list time | < 3 minutes |
-| Listings created/user/week | 5+ |
-| AI draft acceptance rate | 70%+ |
-| Price prediction accuracy | ±15% |
-
----
+### Android (APK)
+```bash
+cd frontend
+npx eas-cli build --platform android --profile preview
+```
 
 ## 📄 License
 
-TBD
+MIT License - see [LICENSE](LICENSE) for details.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 📧 Feedback
+
+**feedback@rackrank.app**
 
 ---
 
-*Built with clean engineering principles and an AI-first approach.*
+**Built with ❤️ for resellers**

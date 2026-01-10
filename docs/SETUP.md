@@ -37,7 +37,19 @@ This will start the Expo development server. You can:
 - Press `a` for Android emulator
 - Scan the QR code with the Expo Go app on your phone
 
-### 3. Backend Setup
+### 3. Local Infrastructure (Docker)
+
+To run the database and cache locally:
+
+```bash
+docker-compose up -d
+```
+
+This will start:
+- **PostgreSQL 15** at `localhost:5432`
+- **Redis 7** at `localhost:6379`
+
+### 4. Backend Setup
 
 ```bash
 cd backend
@@ -50,7 +62,7 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# Edit .env and add your API keys
+# Edit .env and add your Gemini API key
 ```
 
 **Run the server:**

@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "RackRank",
+    "slug": "rackrank",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rackrank.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "RackRank needs camera access to scan and photograph your clothing items for listing.",
+        "NSPhotoLibraryUsageDescription": "RackRank needs photo library access to select existing photos of clothing items.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.rackrank.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow RackRank to access your camera to scan clothing items."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b38561b2-2592-4429-94e0-1a7b2bd74cb4"
+      }
+    },
+    "owner": "michaelquinlan88"
+  }
+}

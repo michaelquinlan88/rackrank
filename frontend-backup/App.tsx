@@ -9,10 +9,10 @@ import RootNavigator from './src/navigation/RootNavigator';
  * Root component for the Expo app.
  */
 export default function App() {
-  return (
-    <>
-      <RootNavigator />
-      <StatusBar style="light" />
-    </>
-  );
+    return (
+        <>
+            <RootNavigator />
+            <StatusBar style="light" />
+        </>
+    );
 }

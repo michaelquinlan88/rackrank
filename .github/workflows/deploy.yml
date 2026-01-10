@@ -68,4 +68,7 @@ jobs:
             --platform managed \
             --region $REGION \
             --allow-unauthenticated \
-            --set-env-vars "ENVIRONMENT=production"
+            --set-env-vars "ENVIRONMENT=production" \
+            --set-env-vars "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}" \
+            --set-env-vars "EBAY_APP_ID=${{ secrets.EBAY_APP_ID }}" \
+            --set-env-vars "EBAY_CERT_ID=${{ secrets.EBAY_CERT_ID }}"
