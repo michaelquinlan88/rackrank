@@ -1,13 +1,13 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
     StyleSheet, View, Text, TouchableOpacity, SafeAreaView,
-    Animated, Dimensions, Vibration, StatusBar, Image, ActivityIndicator
+    Animated, Dimensions, Vibration, StatusBar, Image, ActivityIndicator, Alert
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Detection result type
 interface DetectionResult {
@@ -17,17 +17,23 @@ interface DetectionResult {
     category: string;
 }
 
+interface CapturedImage {
+    uri: string;
+    base64: string;
+}
+
 interface ScanScreenProps {
     navigation: any;
 }
 
-type ScanState = 'camera' | 'preview' | 'analyzing' | 'result';
+type ScanState = 'camera' | 'preview' | 'analyzing' | 'result' | 'error';
 
 export default function ScanScreen({ navigation }: ScanScreenProps) {
     const [permission, requestPermission] = useCameraPermissions();
     const [scanState, setScanState] = useState<ScanState>('camera');
-    const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+    const [capturedImage, setCapturedImage] = useState<CapturedImage | null>(null);
     const [detection, setDetection] = useState<DetectionResult | null>(null);
+    const [errorMessage, setErrorMessage] = useState<string>('');
     const [backendUrl, setBackendUrl] = useState<string>('http://localhost:8000');
 
     const cameraRef = useRef<CameraView>(null);
@@ -58,29 +64,53 @@ export default function ScanScreen({ navigation }: ScanScreenProps) {
 
     // Capture photo
     const handleCapture = useCallback(async () => {
-        if (!cameraRef.current || scanState !== 'camera') return;
+        if (!cameraRef.current) {
+            console.log('Camera ref not available');
+            return;
+        }
+
+        if (scanState !== 'camera') {
+            console.log('Not in camera state:', scanState);
+            return;
+        }
 
         Vibration.vibrate(50);
 
         try {
+            console.log('Taking picture...');
             const photo = await cameraRef.current.takePictureAsync({
                 base64: true,
                 quality: 0.7,
+                exif: false,
             });
 
-            if (photo?.uri && photo?.base64) {
-                setCapturedPhoto(photo.uri);
+            console.log('Photo result:', photo ? 'Got photo' : 'No photo', 'URI:', photo?.uri?.substring(0, 50));
+
+            if (photo && photo.uri) {
+                // Store both URI and base64
+                setCapturedImage({
+                    uri: photo.uri,
+                    base64: photo.base64 || '',
+                });
                 setScanState('preview');
+                console.log('Transitioned to preview state');
+            } else {
+                console.log('No photo URI returned');
+                setErrorMessage('Failed to capture photo. Please try again.');
+                setScanState('error');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.log('Capture error:', error);
+            setErrorMessage(error.message || 'Camera error. Please try again.');
+            setScanState('error');
         }
     }, [scanState]);
 
-    // Retake photo
+    // Reset to camera
     const handleRetake = useCallback(() => {
-        setCapturedPhoto(null);
+        setCapturedImage(null);
         setDetection(null);
+        setErrorMessage('');
         setScanState('camera');
         resultOpacity.setValue(0);
         resultSlide.setValue(30);
@@ -88,62 +118,58 @@ export default function ScanScreen({ navigation }: ScanScreenProps) {
 
     // Analyze photo
     const handleAnalyze = useCallback(async () => {
-        if (!capturedPhoto) return;
+        if (!capturedImage?.base64) {
+            setErrorMessage('No image data available. Please retake the photo.');
+            setScanState('error');
+            return;
+        }
 
         setScanState('analyzing');
         Vibration.vibrate(30);
 
         try {
-            // Get base64 from the captured photo
-            const response = await fetch(capturedPhoto);
-            const blob = await response.blob();
-            const reader = new FileReader();
+            console.log('Sending to backend:', backendUrl);
+            const apiResponse = await fetch(`${backendUrl}/quick-scan`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image_base64: capturedImage.base64 }),
+            });
 
-            reader.onloadend = async () => {
-                const base64String = (reader.result as string).split(',')[1];
+            console.log('API response status:', apiResponse.status);
 
-                try {
-                    const apiResponse = await fetch(`${backendUrl}/quick-scan`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ image_base64: base64String }),
-                    });
+            if (apiResponse.ok) {
+                const data = await apiResponse.json();
+                console.log('API response data:', data);
 
-                    if (apiResponse.ok) {
-                        const data = await apiResponse.json();
-                        const result: DetectionResult = {
-                            brand: data.brand,
-                            confidence: data.confidence,
-                            priceRange: `$${data.price_min}-$${data.price_max}`,
-                            category: data.category,
-                        };
+                const result: DetectionResult = {
+                    brand: data.brand || 'Unknown',
+                    confidence: data.confidence || 0.5,
+                    priceRange: `$${data.price_min || 20}-$${data.price_max || 50}`,
+                    category: data.category || 'Casual',
+                };
 
-                        setDetection(result);
-                        setScanState('result');
+                setDetection(result);
+                setScanState('result');
 
-                        // Animate result in
-                        Animated.parallel([
-                            Animated.timing(resultOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-                            Animated.spring(resultSlide, { toValue: 0, tension: 80, friction: 10, useNativeDriver: true }),
-                        ]).start();
+                // Animate result in
+                Animated.parallel([
+                    Animated.timing(resultOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+                    Animated.spring(resultSlide, { toValue: 0, tension: 80, friction: 10, useNativeDriver: true }),
+                ]).start();
 
-                        Vibration.vibrate([0, 30, 50, 30]);
-                    } else {
-                        console.log('API error:', apiResponse.status);
-                        handleRetake();
-                    }
-                } catch (error) {
-                    console.log('Analysis error:', error);
-                    handleRetake();
-                }
-            };
-
-            reader.readAsDataURL(blob);
-        } catch (error) {
-            console.log('Photo read error:', error);
-            handleRetake();
+                Vibration.vibrate([0, 30, 50, 30]);
+            } else {
+                const errorText = await apiResponse.text();
+                console.log('API error:', errorText);
+                setErrorMessage(`Analysis failed: ${apiResponse.status}`);
+                setScanState('error');
+            }
+        } catch (error: any) {
+            console.log('Analysis error:', error);
+            setErrorMessage(`Connection error: ${error.message || 'Cannot reach server'}`);
+            setScanState('error');
         }
-    }, [capturedPhoto, backendUrl, resultOpacity, resultSlide, handleRetake]);
+    }, [capturedImage, backendUrl, resultOpacity, resultSlide]);
 
     // Continue to full capture flow
     const handleContinue = useCallback(() => {
@@ -151,6 +177,7 @@ export default function ScanScreen({ navigation }: ScanScreenProps) {
         navigation.navigate('Capture');
     }, [navigation]);
 
+    // Permission loading
     if (!permission) {
         return (
             <View style={styles.centerContainer}>
@@ -161,6 +188,7 @@ export default function ScanScreen({ navigation }: ScanScreenProps) {
         );
     }
 
+    // Permission denied
     if (!permission.granted) {
         return (
             <View style={styles.centerContainer}>
@@ -181,12 +209,23 @@ export default function ScanScreen({ navigation }: ScanScreenProps) {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" />
 
-            {/* Camera or Preview */}
-            {scanState === 'camera' ? (
-                <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
-            ) : capturedPhoto ? (
-                <Image source={{ uri: capturedPhoto }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-            ) : null}
+            {/* Camera View - only show when in camera state */}
+            {scanState === 'camera' && (
+                <CameraView
+                    ref={cameraRef}
+                    style={StyleSheet.absoluteFill}
+                    facing="back"
+                />
+            )}
+
+            {/* Preview Image - show when we have a captured image and not in camera state */}
+            {capturedImage && scanState !== 'camera' && (
+                <Image
+                    source={{ uri: capturedImage.uri }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode="cover"
+                />
+            )}
 
             {/* Overlay gradients */}
             <View style={styles.topGradient} />
@@ -203,11 +242,13 @@ export default function ScanScreen({ navigation }: ScanScreenProps) {
                         {scanState === 'preview' && 'Review your photo'}
                         {scanState === 'analyzing' && 'Analyzing item...'}
                         {scanState === 'result' && 'Analysis complete'}
+                        {scanState === 'error' && 'Something went wrong'}
                     </Text>
                 </View>
 
                 {/* Center content */}
                 <View style={styles.centerContent}>
+                    {/* Camera reticle */}
                     {scanState === 'camera' && (
                         <View style={styles.reticle}>
                             <View style={[styles.corner, styles.topLeft]} />
@@ -218,21 +259,51 @@ export default function ScanScreen({ navigation }: ScanScreenProps) {
                         </View>
                     )}
 
+                    {/* Preview confirmation */}
+                    {scanState === 'preview' && (
+                        <View style={styles.previewConfirm}>
+                            <Text style={styles.previewTitle}>📸 Photo Captured!</Text>
+                            <Text style={styles.previewText}>
+                                Does the item look clear? Make sure the brand label is visible.
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Loading spinner */}
                     {scanState === 'analyzing' && (
                         <View style={styles.analyzingContainer}>
                             <ActivityIndicator size="large" color={theme.colors.primary} />
                             <Text style={styles.analyzingText}>Identifying brand...</Text>
+                            <Text style={styles.analyzingSubtext}>Reading labels and estimating price</Text>
                         </View>
                     )}
 
+                    {/* Error display */}
+                    {scanState === 'error' && (
+                        <View style={styles.errorContainer}>
+                            <Text style={styles.errorIcon}>⚠️</Text>
+                            <Text style={styles.errorTitle}>Oops!</Text>
+                            <Text style={styles.errorText}>{errorMessage}</Text>
+                        </View>
+                    )}
+
+                    {/* Result card */}
                     {scanState === 'result' && detection && (
                         <Animated.View style={[styles.resultCard, { opacity: resultOpacity, transform: [{ translateY: resultSlide }] }]}>
                             <View style={styles.resultHeader}>
                                 <View style={styles.brandBadge}>
                                     <Text style={styles.brandText}>{detection.brand}</Text>
                                 </View>
-                                <View style={styles.confidenceBadge}>
-                                    <Text style={styles.confidenceText}>{Math.round(detection.confidence * 100)}% match</Text>
+                                <View style={[
+                                    styles.confidenceBadge,
+                                    detection.confidence < 0.5 && styles.confidenceLow
+                                ]}>
+                                    <Text style={[
+                                        styles.confidenceText,
+                                        detection.confidence < 0.5 && styles.confidenceTextLow
+                                    ]}>
+                                        {Math.round(detection.confidence * 100)}% match
+                                    </Text>
                                 </View>
                             </View>
 
@@ -251,10 +322,15 @@ export default function ScanScreen({ navigation }: ScanScreenProps) {
 
                 {/* Bottom actions */}
                 <View style={styles.bottomActions}>
+                    {/* Camera mode - capture button */}
                     {scanState === 'camera' && (
                         <>
                             <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                                <TouchableOpacity style={styles.captureButton} onPress={handleCapture} activeOpacity={0.8}>
+                                <TouchableOpacity
+                                    style={styles.captureButton}
+                                    onPress={handleCapture}
+                                    activeOpacity={0.8}
+                                >
                                     <View style={styles.captureOuter}>
                                         <View style={styles.captureInner} />
                                     </View>
@@ -264,24 +340,33 @@ export default function ScanScreen({ navigation }: ScanScreenProps) {
                         </>
                     )}
 
+                    {/* Preview mode - retake or analyze */}
                     {scanState === 'preview' && (
-                        <View style={styles.previewActions}>
-                            <TouchableOpacity style={styles.retakeButton} onPress={handleRetake}>
-                                <Text style={styles.retakeText}>Retake</Text>
+                        <View style={styles.actionRow}>
+                            <TouchableOpacity style={styles.secondaryButton} onPress={handleRetake}>
+                                <Text style={styles.secondaryButtonText}>↩ Retake</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.analyzeButton} onPress={handleAnalyze}>
-                                <Text style={styles.analyzeText}>✨ Analyze</Text>
+                            <TouchableOpacity style={styles.primaryButton} onPress={handleAnalyze}>
+                                <Text style={styles.primaryButtonText}>✨ Analyze</Text>
                             </TouchableOpacity>
                         </View>
                     )}
 
+                    {/* Error mode - try again */}
+                    {scanState === 'error' && (
+                        <TouchableOpacity style={styles.primaryButton} onPress={handleRetake}>
+                            <Text style={styles.primaryButtonText}>Try Again</Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {/* Result mode - scan another or continue */}
                     {scanState === 'result' && (
-                        <View style={styles.resultActions}>
-                            <TouchableOpacity style={styles.retakeButton} onPress={handleRetake}>
-                                <Text style={styles.retakeText}>Scan Another</Text>
+                        <View style={styles.actionRow}>
+                            <TouchableOpacity style={styles.secondaryButton} onPress={handleRetake}>
+                                <Text style={styles.secondaryButtonText}>Scan Another</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-                                <Text style={styles.continueText}>Continue →</Text>
+                            <TouchableOpacity style={styles.primaryButton} onPress={handleContinue}>
+                                <Text style={styles.primaryButtonText}>Continue →</Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -321,8 +406,8 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        height: 300,
-        backgroundColor: 'rgba(0,0,0,0.7)',
+        height: 320,
+        backgroundColor: 'rgba(0,0,0,0.75)',
     },
     overlay: {
         flex: 1,
@@ -354,6 +439,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        paddingHorizontal: 24,
     },
     reticle: {
         width: 280,
@@ -395,20 +481,66 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: -40,
     },
+    previewConfirm: {
+        backgroundColor: 'rgba(255,255,255,0.95)',
+        borderRadius: theme.roundness.lg,
+        padding: theme.spacing.lg,
+        alignItems: 'center',
+        maxWidth: 300,
+    },
+    previewTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: theme.colors.text,
+        marginBottom: 8,
+    },
+    previewText: {
+        fontSize: 14,
+        color: theme.colors.textSecondary,
+        textAlign: 'center',
+        lineHeight: 20,
+    },
     analyzingContainer: {
         alignItems: 'center',
     },
     analyzingText: {
         color: '#FFF',
-        fontSize: 16,
-        fontWeight: '600',
-        marginTop: 16,
+        fontSize: 18,
+        fontWeight: '700',
+        marginTop: 20,
+    },
+    analyzingSubtext: {
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 14,
+        marginTop: 8,
+    },
+    errorContainer: {
+        backgroundColor: 'rgba(255,255,255,0.95)',
+        borderRadius: theme.roundness.lg,
+        padding: theme.spacing.lg,
+        alignItems: 'center',
+        maxWidth: 300,
+    },
+    errorIcon: {
+        fontSize: 48,
+        marginBottom: 12,
+    },
+    errorTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: theme.colors.text,
+        marginBottom: 8,
+    },
+    errorText: {
+        fontSize: 14,
+        color: theme.colors.textSecondary,
+        textAlign: 'center',
+        lineHeight: 20,
     },
     resultCard: {
         backgroundColor: 'rgba(255,255,255,0.97)',
         borderRadius: theme.roundness.lg,
         padding: theme.spacing.lg,
-        marginHorizontal: 24,
         width: SCREEN_WIDTH - 48,
         ...theme.shadows.lg,
     },
@@ -423,6 +555,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 10,
         borderRadius: theme.roundness.md,
+        flexShrink: 1,
     },
     brandText: {
         color: '#FFF',
@@ -435,10 +568,16 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
         borderRadius: theme.roundness.sm,
     },
+    confidenceLow: {
+        backgroundColor: '#FFF3E0',
+    },
     confidenceText: {
         color: theme.colors.success,
         fontSize: 13,
         fontWeight: '600',
+    },
+    confidenceTextLow: {
+        color: '#E65100',
     },
     priceHighlight: {
         backgroundColor: theme.colors.primaryLight,
@@ -478,6 +617,7 @@ const styles = StyleSheet.create({
     bottomActions: {
         alignItems: 'center',
         paddingBottom: 50,
+        paddingHorizontal: 24,
     },
     captureButton: {
         marginBottom: 12,
@@ -503,48 +643,37 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '600',
     },
-    previewActions: {
+    actionRow: {
         flexDirection: 'row',
         gap: 16,
     },
-    retakeButton: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        paddingHorizontal: 28,
-        paddingVertical: 16,
-        borderRadius: theme.roundness.md,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.3)',
-    },
-    retakeText: {
-        color: '#FFF',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    analyzeButton: {
-        backgroundColor: theme.colors.primary,
-        paddingHorizontal: 36,
-        paddingVertical: 16,
-        borderRadius: theme.roundness.md,
-    },
-    analyzeText: {
-        color: '#FFF',
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    resultActions: {
-        flexDirection: 'row',
-        gap: 16,
-    },
-    continueButton: {
+    primaryButton: {
         backgroundColor: theme.colors.primary,
         paddingHorizontal: 32,
         paddingVertical: 16,
         borderRadius: theme.roundness.md,
+        minWidth: 140,
+        alignItems: 'center',
     },
-    continueText: {
+    primaryButtonText: {
         color: '#FFF',
         fontSize: 16,
         fontWeight: '700',
+    },
+    secondaryButton: {
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        paddingHorizontal: 24,
+        paddingVertical: 16,
+        borderRadius: theme.roundness.md,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.3)',
+        minWidth: 120,
+        alignItems: 'center',
+    },
+    secondaryButtonText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '600',
     },
     permissionIcon: {
         fontSize: 64,
