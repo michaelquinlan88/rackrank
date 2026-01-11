@@ -5,9 +5,25 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { theme } from '../theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Auto-detect backend URL from Expo's debugger host (same machine as dev server)
+function getDefaultBackendUrl(): string {
+    try {
+        // Get the host from Expo - this is the IP of the dev machine
+        const debuggerHost = Constants.expoConfig?.hostUri?.split(':')[0];
+        if (debuggerHost) {
+            return `http://${debuggerHost}:8000`;
+        }
+    } catch (e) {
+        console.log('Could not auto-detect backend URL:', e);
+    }
+    // Fallback for production or if detection fails
+    return 'http://192.168.0.89:8000';
+}
 
 // Detection result type
 interface DetectionResult {
@@ -34,19 +50,22 @@ export default function ScanScreen({ navigation }: ScanScreenProps) {
     const [capturedImage, setCapturedImage] = useState<CapturedImage | null>(null);
     const [detection, setDetection] = useState<DetectionResult | null>(null);
     const [errorMessage, setErrorMessage] = useState<string>('');
-    const [backendUrl, setBackendUrl] = useState<string>('http://localhost:8000');
+    const [backendUrl, setBackendUrl] = useState<string>(getDefaultBackendUrl());
 
     const cameraRef = useRef<CameraView>(null);
     const pulseAnim = useRef(new Animated.Value(1)).current;
     const resultOpacity = useRef(new Animated.Value(0)).current;
     const resultSlide = useRef(new Animated.Value(30)).current;
 
-    // Load backend URL from settings
+    // Load backend URL from settings (override auto-detected if manually set)
     React.useEffect(() => {
         AsyncStorage.getItem('backendUrl').then(url => {
             if (url) setBackendUrl(url);
         });
+        console.log('Using backend URL:', backendUrl);
     }, []);
+
+
 
     // Pulsing animation for capture button
     React.useEffect(() => {
