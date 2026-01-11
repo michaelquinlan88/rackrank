@@ -31,6 +31,7 @@ interface ListingResult {
 
 export default function ReviewScreen({ navigation, route }: any) {
     const images = route.params?.images || [];
+    const base64Images = route.params?.base64Images || [];
     const [loading, setLoading] = useState(true);
     const [publishing, setPublishing] = useState(false);
     const [listing, setListing] = useState<ListingResult | null>(null);
@@ -69,13 +70,16 @@ export default function ReviewScreen({ navigation, route }: any) {
             try {
                 setLoading(true);
 
+                console.log('Sending to /analyze with', base64Images.length, 'images');
+
                 const response = await fetch(`${BACKEND_URL}/analyze`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        image_base64_list: [],
+                        // Use the base64 images passed from CaptureScreen
+                        image_base64_list: base64Images,
                         image_urls: images,
                         user_id: 'local_user_001',
                     }),

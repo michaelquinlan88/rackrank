@@ -59,8 +59,11 @@ class ListingResponse(BaseModel):
     price_confidence: str
     condition: str
     brand: Optional[str] = None
+    product_line: Optional[str] = None  # e.g., "Better Sweater", "Nano Puff"
     size: Optional[str] = None
     color: Optional[str] = None
+    material: Optional[str] = None  # e.g., "100% Polyester"
+    style_number: Optional[str] = None  # e.g., "25528"
     # eBay price intelligence
     ebay_min_price: Optional[float] = None
     ebay_max_price: Optional[float] = None
@@ -125,24 +128,34 @@ GEMINI_PROMPT = """
 You are an expert clothing reseller with 10+ years experience on eBay, Depop, and Poshmark.
 Analyze the provided images of a clothing item and generate a professional resale listing.
 
+IMPORTANT: Focus on identifying the SPECIFIC product model, not just the brand.
+- Read ALL visible text on labels, tags, and the garment itself
+- Look for product line names (e.g., "Better Sweater", "Nano Puff", "Re-Tool")
+- Check for style numbers (e.g., "23055", "84211")
+- Note material composition if visible (e.g., "100% Polyester", "Merino Wool")
+
 Return ONLY a valid JSON object (no markdown, no explanation) with these exact fields:
 {
-  "title": "SEO-optimized title: Brand + Style + Key Feature + Size + Color (max 80 chars)",
-  "description": "Compelling 2-3 sentence description focusing on condition, material, and selling points",
-  "category": "Marketplace category path (e.g., Men's Clothing > Outerwear > Fleece Jackets)",
+  "title": "SEO-optimized: Brand + Product Line + Style + Size + Color (max 80 chars)",
+  "description": "2-3 sentences: product line name, material, condition details, key features",
+  "category": "Marketplace category (e.g., Men's Clothing > Outerwear > Fleece Jackets)",
   "suggested_price": 65.0,
   "price_confidence": "high",
   "condition": "Excellent",
-  "brand": "Brand name from label",
+  "brand": "Exact brand name from label",
+  "product_line": "Specific model name (e.g., Better Sweater, Nano Puff, Re-Tool Snap-T)",
   "size": "Size from label",
-  "color": "Primary color"
+  "color": "Descriptive color name",
+  "material": "Material composition if visible",
+  "style_number": "Style/product number if visible on tag, or null"
 }
 
 Rules:
 - suggested_price must be a number (float), not a string
-- price_confidence must be one of: "high", "medium", "low"
-- condition must be one of: "New With Tags", "Excellent", "Good", "Fair"
-- If you can't determine a field, make your best educated guess based on the image
+- price_confidence: "high" if you can identify brand AND model, "medium" if only brand, "low" if uncertain
+- condition: "New With Tags", "Excellent", "Good", or "Fair"
+- product_line: If you see "Better Sweater" on a label, the product_line is "Better Sweater"
+- Look for style numbers on the care tag or inner label (usually 5-6 digits)
 """
 
 def parse_gemini_response(text: str) -> dict:
@@ -343,6 +356,7 @@ async def analyze_clothing(request: CaptureRequest):
     """
     Analyze clothing photos using Gemini 2.0 Flash.
     Accepts base64 encoded images or returns mock data for demo.
+    After AI analysis, looks up real prices from eBay sold listings.
     """
     if not api_key:
         raise HTTPException(status_code=500, detail="Gemini API key not configured. Add GOOGLE_API_KEY to .env")
@@ -369,25 +383,76 @@ async def analyze_clothing(request: CaptureRequest):
             
             # Parse structured response
             data = parse_gemini_response(response.text)
+            
+            # Look up real prices from eBay sold listings
+            ebay_prices = await get_ebay_pricing(data)
+            
+            # Merge eBay prices into response
+            if ebay_prices:
+                data['ebay_min_price'] = ebay_prices.get('min_price')
+                data['ebay_max_price'] = ebay_prices.get('max_price')
+                data['ebay_avg_price'] = ebay_prices.get('avg_price')
+                data['ebay_sample_count'] = ebay_prices.get('sample_count')
+                # Use eBay avg price as suggested price if available
+                if ebay_prices.get('avg_price'):
+                    data['suggested_price'] = ebay_prices['avg_price']
+                    data['price_confidence'] = 'high' if ebay_prices.get('sample_count', 0) >= 5 else 'medium'
+            
             return ListingResponse(**data)
         
         # Demo mode: return high-quality mock for UI demonstration
         return ListingResponse(
             title="Patagonia Better Sweater Fleece Jacket Men's L Blue",
-            description="Excellent condition Patagonia Better Sweater fleece jacket. Minimal wear, no stains or defects. Classic full-zip style in navy blue.",
+            description="Excellent condition Patagonia Better Sweater fleece jacket. Minimal wear, no stains or defects. Classic full-zip style in navy blue. 100% Polyester fleece.",
             category="Men's Outerwear > Fleece",
             suggested_price=65.00,
             price_confidence="high",
             condition="Excellent",
             brand="Patagonia",
+            product_line="Better Sweater",
             size="L",
-            color="Navy Blue"
+            color="Navy Blue",
+            material="100% Polyester",
+            style_number="25528"
         )
 
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=500, detail=f"Failed to parse Gemini response: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI Analysis failed: {str(e)}")
+
+async def get_ebay_pricing(ai_data: dict) -> dict:
+    """
+    Look up real prices from eBay sold listings based on AI-identified item.
+    """
+    ebay = get_ebay_client()
+    if not ebay:
+        return None
+    
+    # Build search query from AI data
+    brand = ai_data.get('brand', '')
+    product_line = ai_data.get('product_line', '')
+    size = ai_data.get('size', '')
+    color = ai_data.get('color', '')
+    
+    # Create search query: "Patagonia Better Sweater L"
+    query_parts = [brand, product_line, size]
+    query = ' '.join(p for p in query_parts if p and p.lower() != 'unknown')
+    
+    if not query.strip():
+        return None
+    
+    try:
+        result = await ebay.get_price_intelligence(query)
+        return {
+            'min_price': result.min_price,
+            'max_price': result.max_price,
+            'avg_price': result.avg_price,
+            'sample_count': result.sample_count
+        }
+    except Exception as e:
+        print(f"eBay price lookup failed: {e}")
+        return None
 
 @app.get("/health")
 async def health_check():
