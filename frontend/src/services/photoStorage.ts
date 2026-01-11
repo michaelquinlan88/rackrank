@@ -117,19 +117,21 @@ export async function deletePhoto(photoId: string): Promise<boolean> {
 
 /**
  * Save photo to device camera roll (for FB Marketplace)
+ * Note: This only works in standalone builds, not Expo Go
  */
 export async function saveToMediaLibrary(photoUri: string): Promise<boolean> {
     try {
         const { status } = await MediaLibrary.requestPermissionsAsync();
         if (status !== 'granted') {
-            console.log('Media library permission denied');
+            // Permission denied - expected in Expo Go
             return false;
         }
 
         await MediaLibrary.saveToLibraryAsync(photoUri);
         return true;
     } catch (error) {
-        console.error('Error saving to media library:', error);
+        // Silently fail - this is expected in Expo Go
+        // Will work in standalone builds with proper permissions
         return false;
     }
 }

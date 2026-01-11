@@ -31,8 +31,7 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -43,6 +42,13 @@
         "expo-camera",
         {
           "cameraPermission": "Allow RackRank to access your camera to scan clothing items."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow RackRank to save photos to your camera roll.",
+          "savePhotosPermission": "Allow RackRank to save photos to your camera roll."
         }
       ]
     ],
